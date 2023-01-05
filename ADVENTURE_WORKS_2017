@@ -1,0 +1,257 @@
+-- PROJECT WITH ADVENTURE WORKS
+/*
+BBDD: AdventureWorks
+Tablas: Person.BusinessEntityAddress
+campos: BusinessEntityID, AddressID */
+
+USE AdventureWorks2017
+
+SELECT 
+	BusinessEntityID,
+	COUNT(AddressID) AS Cant_Direc
+FROM Person.BusinessEntityAddress
+GROUP BY BusinessEntityID
+HAVING COUNT(AddressID)>=2
+
+/* Showing all employees whose age is greater than the average age of employees
+	BBDD: AdventureWorks
+	Tablas: HumanResources.Employee
+	campos: BusinessEntityID, BirthDate */
+
+SELECT 
+	BusinessEntityID,
+	BirthDate,
+	YEAR(GETDATE()) - YEAR(BIRTHDATE) AS EDAD
+FROM HumanResources.Employee
+WHERE (YEAR(GETDATE()) - YEAR(BIRTHDATE)) >(SELECT AVG(YEAR(GETDATE()) - YEAR(BIRTHDATE)) FROM HumanResources.Employee)
+ORDER BY EDAD ASC
+ 
+ 
+/* Showing the number of products from the Shorts and Brakes subcategories.
+	BBDD: AdventureWorks
+	Tablas: Production.ProductSubcategory, Production.Product
+	campos: Name (Tabla Subcategoria), ProductSubcategoryID, ProductID
+*/
+
+SELECT 
+	PR.Name AS Subcategoria,
+	COUNT(PRODUCTID) AS CANT_PROD
+FROM Production.ProductSubcategory PR INNER JOIN Production.Product PP
+ON PR.ProductSubcategoryID = PP.ProductSubcategoryID
+WHERE PR.NAME IN ('Shorts', 'Brakes')
+GROUP BY PR.NAME
+
+
+/* Showing the number of Employees grouped only by their job title (JobTitle), which
+   have started working between the periods of January and March 2009 and within this group
+   only those with more than 3 employees. 
+	BBDD: AdventureWorks
+	Tablas: HumanResources.Employee
+	campos: JobTitle, HireDate, BusinessEntityID
+*/
+
+SELECT 
+	JobTitle,
+	COUNT(BusinessEntityID) AS CANT_EMPLEA
+FROM HumanResources.Employee
+WHERE HireDate BETWEEN '2009-01-01' AND '2009-03-31'
+GROUP BY JobTitle
+HAVING COUNT(BusinessEntityID) >3
+
+
+
+/*5. Showing employees, date of employment and years of employment for all
+  Employees who have come to work on Wednesday or Friday. 
+	Note: FechaIngresoLaboral='hiredate'
+	BBDD: AdventureWorks
+	Tablas: HumanResources.Employee
+	campos: BusinessEntityID, HireDate
+*/
+
+SELECT BusinessEntityID,
+	HireDate as Fecha_Ingreso,
+	YEAR(GETDATE()) - YEAR(HireDate) AS AÑOS_TRABA,
+	DATENAME(weekday, HireDate) AS DIA_INGRESO
+FROM HumanResources.Employee
+WHERE DATENAME(weekday, HireDate) IN ('Wednesday','Friday')
+ORDER BY BusinessEntityID ASC
+
+
+/*6. Showing the name of the subcategory and all the names of the products, whose price of
+  list is greater than the average price of each corresponding subcategory.
+	BBDD: AdventureWorks
+	Tablas: Production.Product, Production.ProductSubcategory
+	Campos: name (ProductSubcategory), name (Product), ProductSubcategoryID, ListPrice
+*/
+SELECT *
+FROM Production.Product
+
+SELECT *
+FROM Production.ProductSubcategory
+
+SELECT 
+	B.NAME AS Subcategoria,
+	A.NAME AS PRODUCTO,
+	A.ProductSubcategoryID, 
+	A.ListPrice,
+	D.PROM
+FROM Production.Product A
+INNER JOIN Production.ProductSubcategory B
+ON A.ProductSubcategoryID = B.ProductSubcategoryID
+INNER JOIN(
+			SELECT
+				ProductSubcategoryID,
+				AVG(ListPrice) AS Prom
+			FROM Production.Product
+			GROUP BY ProductSubcategoryID
+) D
+ON A.ProductSubcategoryID = D.ProductSubcategoryID
+WHERE A.ListPrice > D.PROM
+
+
+
+/*
+  Showing the name of the products, the number of billings and the total line amount
+  of those products that have less than 100 invoicings
+	BBDD: AdventureWorks
+	Tablas: Production.Product, Sales.SalesOrderDetail
+	Campos: Name, ProductID(Product), SalesOrderID, ProductID(SalesOrderDetail), linetotal
+*/
+
+SELECT 
+	P.NAME AS PRODUCTO,
+	P.PRODUCTID,
+	CANTFACT,
+	TOTALLINEA
+FROM Production.Product P
+INNER JOIN (SELECT PRODUCTID, COUNT(PRODUCTID) AS CANTFACT, SUM(LineTotal) AS TOTALLINEA
+			FROM Sales.SalesOrderDetail
+			GROUP BY ProductID
+) S1
+ON P.PRODUCTID = S1.ProductID
+WHERE CANTFACT<100
+ORDER BY ProductID ASC
+
+
+
+/*
+Showing the number of people who make the purchase with a credit card,
+grouped by the name of Person Type (PersonType) and Card Type (CardType).
+
+	BBDD: AdventureWorks
+	Tablas: Person.Person, Sales.PersonCreditCard, Sales.CreditCard
+	campos: BusinessEntityID, CreditCardID, PersonType, CardType
+*/
+
+SELECT *
+FROM Person.Person
+
+SELECT *
+FROM Sales.PersonCreditCard
+
+SELECT *
+FROM Sales.CreditCard
+
+SELECT 
+Nombre_Tipo_Persona,
+CardType as Tipo_Tarjeta,
+COUNT(SP.CreditCardID) AS Cantidad_Clientes
+FROM Person.Person P
+INNER JOIN ( SELECT 
+				BusinessEntityID,
+				PersonType,
+				CASE PersonType
+						WHEN 'SC' THEN 'Cliente Tienda'
+						WHEN 'IN' THEN 'Cliente Individual'
+						WHEN 'SP' THEN 'Vendedor'
+						WHEN 'EM' THEN 'Empleado'
+						WHEN 'VC' THEN 'Proveedor'
+						WHEN 'GC' THEN 'Contacto General'
+				END AS Nombre_Tipo_Persona
+				FROM Person.Person
+) P2
+ON P.BusinessEntityID = P2.BusinessEntityID
+INNER JOIN (Sales.PersonCreditCard SP
+INNER JOIN Sales.CreditCard SC
+ON SP.CreditCardID = SC.CreditCardID)
+ON P.BusinessEntityID = SP.BusinessEntityID
+GROUP BY Nombre_Tipo_Persona, CardType
+ORDER BY Nombre_Tipo_Persona, CardType
+
+
+
+/*
+Showing all employees who are married (MaritalStatus=M) and that their hourly pay (Rate) is
+equal to $10. Note that the most recent Payment Date must be considered
+(the highest RateChangeDate) from your historical pay table.
+Add the Frecuencia_de_Pago field to the query, starting from the PayFrequency field:
+If PayFrequency=1 is Monthly Payment, otherwise Biweekly Payment.
+	BBDD: AdventureWorks
+	Tablas: HumanResources.Employee, HumanResources.EmployeePayHistory
+	campos: BusinessEntityID, MaritalStatus, Rate, PayFrequency
+*/
+
+SELECT 
+	H1.BusinessEntityID,
+	MaritalStatus,
+	RATE,
+	Frecuencia_Pago
+FROM HumanResources.EmployeePayHistory H1
+RIGHT JOIN (
+SELECT 
+			BusinessEntityID,
+			MAX(RateChangeDate) AS MAX_DAY
+			FROM HumanResources.EmployeePayHistory  
+			GROUP BY BusinessEntityID
+)H2
+ON H1.BusinessEntityID = H2.BusinessEntityID
+
+INNER JOIN (SELECT * FROM HumanResources.Employee WHERE MaritalStatus='M') HE
+ON HE.BusinessEntityID = H1.BusinessEntityID
+
+INNER JOIN (SELECT BusinessEntityID, 
+					CASE PAYFREQUENCY
+						WHEN 1 THEN 'Pago Mensual'
+						WHEN 2 THEN 'Pago Quincenal'
+					END AS Frecuencia_Pago
+			FROM HumanResources.EmployeePayHistory HF
+)H3
+ON H1.BusinessEntityID = H3.BusinessEntityID
+
+WHERE  MAX_DAY = H1.RateChangeDate AND H1.RATE >= 10 
+
+
+/*
+Declaring a variable @codVendedor of integer type, given a code of a salesperson I
+show the code and full name of the seller (In case the code belongs to
+to a salesperson must be in the Sales.SalesPerson table), otherwise, if the code exists
+(It is found in the Person.Person table), but does not belong to a seller prints the Type
+of Person, with its code in consultation, Finally, if the code does not exist (It is not found in
+my Person.Person table), prints a message saying "The code in query does not exist"
+	BBDD: AdventureWorks
+	Tablas: Person.Person, Sales.SalesPerson
+	Fields: BusinessEntityID, PersonType, FirstName, LastName
+*/
+
+DECLARE @codVendedor2 int = 154545
+IF EXISTS(Select BusinessEntityID FROM Sales.SalesPerson where BusinessEntityID=@codVendedor2 )
+	BEGIN
+		Select 
+			P.BusinessEntityID,
+			PersonType AS Tipo_Persona,
+			CONCAT(FirstName,' ',LastName) AS NombreCompleto
+		FROM Person.Person P
+		LEFT JOIN Sales.SalesPerson S
+		ON P.BusinessEntityID = S.BusinessEntityID
+		WHERE S.BusinessEntityID = @codVendedor2
+	END
+ELSE IF EXISTS (Select BusinessEntityID FROM Person.Person WHERE BusinessEntityID=@codVendedor2)
+	BEGIN
+		Select 
+			BusinessEntityID,
+			PersonType AS Tipo_Persona
+		FROM Person.Person 
+		WHERE BusinessEntityID = @codVendedor2
+	END
+ELSE 
+	Print 'El código en consulta no existe'
