@@ -1,0 +1,282 @@
+
+CREATE DATABASE BD_FINAL
+ON
+PRIMARY 
+(
+	NAME		= BD_FINAL,
+	FILENAME	= 'C:\SQL\BD_FINAL.MDF',
+	SIZE		= 100 MB,
+	FILEGROWTH	= 10 MB,
+	MAXSIZE		= 500 MB
+)
+Log On
+(
+	NAME		= BD_FINAL_Log,
+	FILENAME	= 'C:\SQL\BD_FINAL_Log.LDF',
+	SIZE		= 800 MB,
+	FILEGROWTH	= 10%,
+	MAXSIZE		= Unlimited
+)
+
+-- Creating the tables tblClientes, tblUbigeos and tblDeudas and importing using the BULK INSERT the files tblClientes.txt, tblUbigeos.csv and tblDeudas.txt respectively
+
+
+CREATE TABLE TBL_CLIENTES (
+	ubigeo CHAR (6),
+	dni CHAR(8) PRIMARY KEY,
+	apPaterno VARCHAR(50),
+	apMaterno VARCHAR(50),
+	nombres VARCHAR(50),
+	fechaNac CHAR (8),
+	direcc VARCHAR(300)
+)
+
+CREATE TABLE TBL_UBIGEOS (
+	ubigeo CHAR (6) Primary Key,
+	Dpto VARCHAR(50),
+	Prov VARCHAR(50),
+	Dist VARCHAR(50)
+)
+
+Alter Table TBL_CLIENTES
+Add Constraint FK_ubigeo Foreign Key (ubigeo)
+references TBL_UBIGEOS(ubigeo)
+
+CREATE TABLE TBL_DEUDAS (
+	dni CHAR(8),
+	periodo CHAR(6),
+	deuda MONEY,
+	Clasificacion INT,
+	cod_empresa INT,
+	bnk VARCHAR(100),
+	tipo VARCHAR(100)
+)
+
+BULK INSERT TBL_CLIENTES
+	FROM 'C:\Users\Usuario\Desktop\SQL\PC03\Bases\tblClientes.txt'
+	WITH (
+			FIELDTERMINATOR ='|',
+			ROWTERMINATOR ='\n',
+			FIRSTROW =2
+		)
+
+BULK INSERT TBL_UBIGEOS
+	FROM 'C:\Users\Usuario\Desktop\SQL\PC03\Bases\tblUbigeos.csv'
+	WITH (
+			FIELDTERMINATOR =';',
+			ROWTERMINATOR ='\n',
+			FIRSTROW =2
+		)
+
+BULK INSERT TBL_DEUDAS
+	FROM 'C:\Users\Usuario\Desktop\SQL\PC03\Bases\tblDeudas.txt'
+	WITH (
+			FIELDTERMINATOR ='|',
+			ROWTERMINATOR ='\n',
+			FIRSTROW =2
+		)
+
+SELECT *
+FROM TBL_CLIENTES
+
+
+SELECT *
+FROM TBL_UBIGEOS
+
+
+SELECT *
+FROM TBL_DEUDAS
+
+
+
+-- Using a script, insert the following records into the tblUbigeos table.
+
+INSERT INTO TBL_UBIGEOS
+VALUES
+('140140','LIMA','LIMA','SAN BORJA'),
+('140141','LIMA','LIMA','VILLA EL SALVADOR'),
+('140142','LIMA','LIMA','LOS OLIVOS'),
+('140143','LIMA','LIMA','SANTA ANITA')
+
+SELECT *
+FROM TBL_UBIGEOS
+
+
+
+-- Crossing the information from the table tblClientes and tblUbigeos, for the common key Ubigeo, add the age field and saving it in a fixed table called Clientes_2022.
+-- Tables: TBL_CLIENTES, TBL_UBIGEOS
+
+SELECT 
+	TC.*,
+	Dpto,
+	Prov,
+	Dist,
+	DATEDIFF(year,CONVERT(CHAR(8),fechaNac,2),'2022') AS Edad
+INTO CLIENTES_2022
+FROM TBL_CLIENTES TC 
+LEFT JOIN TBL_UBIGEOS TU
+ON TC.ubigeo = TU.ubigeo
+
+SELECT *
+FROM CLIENTES_2022
+
+
+
+--Listing the relationship of all delinquent clients, grouped with the average of their total debt. 
+--The fields that must be displayed are the DNI, Full Name (Names + Surnames) and Average total debt.
+--Note: The Full name must not have blank spaces.
+--Tables: tblClientes, tblDeudas
+--Fields: dni, deuda, nombres, apPaterno, apMaterno
+
+SELECT 
+	DNI,
+	AVG(deuda) AS promedioDeudaTotal
+INTO TBL_Deuda_Prom
+FROM TBL_DEUDAS
+GROUP BY DNI
+
+SELECT 
+	TC.DNI,
+	CONCAT(TRIM(nombres),' ',TRIM(apPaterno),' ',TRIM(apMaterno)) AS nombreCompleto,
+	promedioDeudaTotal
+FROM TBL_CLIENTES TC
+INNER JOIN TBL_Deuda_Prom TDP
+ON TC.dni = TDP.dni
+ORDER BY nombreCompleto
+
+
+--Eliminating all clients from the Clientes_2022 table that have debt in the RIPLEY bank or belong to the district of La Molina or La Victoria or those clients who are between 20 and 35 years of age 
+--Tables: Clientes_2022, tblDeudas
+--Fields: Dist, edad, bnk
+
+-- CREATING THE TEMPORARY TABLE TBL_ALL
+SELECT 
+	TC.*,
+	DATEDIFF(year,CONVERT(CHAR(8),fechaNac,2),'2022') AS Edad,
+	Dpto,
+	Prov,
+	Dist,
+	periodo,
+	deuda,
+	Clasificacion,
+	cod_empresa,
+	bnk,
+	tipo
+INTO TBL_ALL
+FROM TBL_CLIENTES TC 
+LEFT JOIN TBL_UBIGEOS TU
+ON TC.ubigeo = TU.ubigeo
+FULL OUTER JOIN TBL_DEUDAS TD
+ON TD.dni = TC.dni
+ORDER BY TC.DNI
+
+-- FORMULATING THE SUBQUERY
+select distinct(dni)
+from TBL_ALL
+WHERE (bnk = 'RIPLEY') OR (Dist IN ('LA MOLINA', 'LA VICTORIA')) OR (Edad BETWEEN 20 AND 35)
+
+-- DELETING RECORDS FROM THE CLIENTS_2022 TABLE
+DELETE
+FROM CLIENTES_2022
+WHERE DNI IN ( 
+			select distinct(dni)
+			from TBL_ALL
+			WHERE (bnk = 'RIPLEY') OR (Dist IN ('LA MOLINA', 'LA VICTORIA')) OR (Edad BETWEEN 20 AND 35)
+			)
+
+
+-- Listing all the clients (from the Clientes_2022 table) who are over 35 years old and who have debts registered with a BANK (Field of the tblDeudas table: type)
+--Tablas: Clientes_2022, tblDeudas
+--Campos: dni,edad, periodo, deuda, tipo
+
+SELECT *
+FROM CLIENTES_2022
+WHERE Edad>35 AND DNI IN (SELECT DISTINCT(DNI)
+			FROM TBL_DEUDAS
+			WHERE TIPO='Banco' AND DEUDA IS NOT NULL)
+ORDER BY Edad
+
+
+--Creating a stored procedure given an age (age must be an input parameter), list the first 2 customers in each district with that age. 
+--Tablas: Clientes_2022
+
+-- CREATING TEMPORARY TABLE
+SELECT
+		Dist,
+		ROW_NUMBER()OVER(PARTITION BY Dist,Edad ORDER BY Dist) AS Orden,
+		DNI,
+		apPaterno,
+		apMaterno,
+		nombres,
+		Edad
+	INTO TBL_TEMPORAL1
+	FROM CLIENTES_2022
+	ORDER BY Dist, Edad
+
+CREATE OR ALTER PROC SP_ListaTop2ClientexDist(@Edad int)
+AS
+BEGIN
+	SELECT *
+	FROM TBL_TEMPORAL1
+	WHERE EDAD =@Edad AND Orden<=2
+	ORDER BY Dist
+END
+
+EXEC SP_ListaTop2ClientexDist 42
+
+GO
+
+
+
+-- Creating a stored procedure given a DNI, it lists all its historical debts, if the client does not have any debt, it sends me a message "The client does not register any debt". 
+-- Tables: Clientes_2022, tblDeudas
+
+SELECT C2.dni, periodo, deuda, Clasificacion,cod_empresa,bnk,tipo
+INTO TBL_TEMPORAL3
+FROM CLIENTES_2022 C2
+INNER JOIN TBL_DEUDAS TD
+ON TD.dni = C2.dni
+
+CREATE OR ALTER PROC SP_ListaDeudaxDNI(@DNI varchar(8))
+AS
+BEGIN
+	IF EXISTS (SELECT * FROM TBL_TEMPORAL3 	WHERE DNI=@DNI)
+		SELECT* FROM TBL_TEMPORAL3 	WHERE DNI=@DNI
+	ELSE
+		PRINT 'El cliente no registra ninguna deuda'
+END
+
+--THE CLIENT PRESENTS DEBTS:
+EXEC SP_ListaDeudaxDNI '06615052'
+
+-- THE CLIENT HAS NO DEBTS:
+EXEC SP_ListaDeudaxDNI '75596728'
+
+
+
+-- Creating a stored procedure given the name of the bank (In the debts table the field is called: bnk) 
+-- that lists all the debtors with the sum of their debt amounts for each period in a Pivoted manner. 
+
+--Tablas: tblDeudas
+--Campos: dni, periodo, deuda, bnk
+
+CREATE OR ALTER PROC SP_ListaDeudaClientes(@Banco varchar(30))
+AS
+BEGIN
+	SELECT *
+	FROM(
+		SELECT 
+			dni,
+			bnk as BANCO,
+			periodo,
+			deuda
+		FROM TBL_DEUDAS
+		WHERE bnk = @Banco
+		)SUB
+	PIVOT( 
+	SUM(deuda)
+	FOR periodo IN ([201502],[201503],[201504],[201505],[201506],[201507],[201508],[201509],[201510],[201511],[201512],[201601])
+	) PVT
+END
+
+EXEC SP_ListaDeudaClientes 'Scotiabank'
