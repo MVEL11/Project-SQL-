@@ -1,0 +1,128 @@
+--PROJECT SQL
+
+CREATE DATABASE BBDD_Practica01
+ON
+PRIMARY 
+(
+	NAME		= BBDD_Practica01,
+	FILENAME	= 'C:\SQL\BBDD_Practica01.MDF',
+	SIZE		= 10 MB,
+	FILEGROWTH	= 1 MB,
+	MAXSIZE		= 50 MB
+)
+Log On
+(
+	NAME		= BBDD_Practica01_Log,
+	FILENAME	= 'C:\SQL\BBDD_Practica01_Log.LDF',
+	SIZE		= 8 MB,
+	FILEGROWTH	= 10%,
+	MAXSIZE		= Unlimited
+)
+
+-- Creating within the database BBDD_Practica01, the structure of the tables of the tablas.xlsx file.
+
+CREATE TABLE CLIENTE(
+	DNI char(8)	PRIMARY KEY,
+	nomCliente varchar(10) NOT NULL,
+	ApPaterno varchar(30) NOT NULL,
+	ApMaterno varchar(30) NOT NULL,
+	fNac date NOT NULL,
+	codDist int NOT NULL
+)
+
+CREATE TABLE Distrito(
+	codDist int PRIMARY KEY,
+	nombreDistrito varchar(50) NOT NULL
+)
+
+--- Defining the secondary keys of the created tables. For the Clients Table, define the CodDist as secondary key of the District table.
+
+ALTER TABLE CLIENTE
+ADD CONSTRAINT FK_codDist
+FOREIGN KEY (codDist)
+REFERENCES Distrito(codDist)
+
+-- Restrictions
+---Restriction that validates the client's DNI, which is necessarily made up of 8 numerical digits.
+
+ALTER TABLE CLIENTE
+ADD CONSTRAINT CK_DNI
+CHECK(DNI LIKE '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]')
+
+--- Restriction that validates that the client's Date of Birth is less than '01/01/2003'
+
+ALTER TABLE CLIENTE
+ADD CONSTRAINT CK_fNac
+CHECK (fNAC<= '01/01/2003')
+
+--- Showing the name, color, size, price and price with tax (IGV). Of all the products that have a List price greater than S/. 60; 
+-- In addition, they have black color and size 40 or blue color with size S.
+
+SELECT
+Name,
+Color,
+Size,
+ListPrice
+FROM Production.Product
+WHERE ListPrice > 60 AND 
+((Color= 'Black' AND Size='40') OR (Color= 'Blue' AND Size= 'S'))
+
+--- Showing all products that are the colors* red, blue, black, white or yellow and their list price is greater than zero.
+
+SELECT 
+Name,
+ListPrice,
+Color 
+FROM Production.Product
+WHERE Color IN ('Red','Blue','Black','White','Yellow') AND ListPrice>0
+ORDER BY ListPrice ASC
+
+--- Showing the name, size, color and end date of sale (SellEndDate), of the 10 most expensive products (with repetitions *); 
+-- who have a size between the following sizes: 40, 42, 44, 46 and 48.
+
+SELECT TOP 10 WITH TIES [ListPrice],
+Name,
+Size,
+Color,
+SellEndDate
+FROM Production.Product
+WHERE Size IN ('40','42','44','46','48')
+ORDER BY ListPrice DESC
+
+--- Showing the name of the products with their list price and color, for those products that start with the range of letters from A to G and do not have * the size S, M or L
+
+SELECT
+Name,
+ListPrice,
+Color,
+Size
+FROM Production.Product
+WHERE Name between 'A%' and 'G%' AND (Size NOT IN ('S','M','L') OR Size IS NULL)
+ORDER BY Name
+
+--- Displaying everyone with the last name of is listed: Allen, Miller, Monroe, or Young.
+
+Select 
+BusinessEntityId AS CodigoPersona, 
+CONCAT (FirstName, ' ',LastName ) AS NombreCompleto,
+PersonType, 
+CASE PersonType
+		WHEN 'SC' THEN 'Cliente Tienda'
+		WHEN 'IN' THEN 'Cliente Individual'
+		WHEN 'SP' THEN 'Vendedor'
+		WHEN 'EM' THEN 'Empleado'
+		WHEN 'VC' THEN 'Proveedor'
+		WHEN 'GC' THEN 'Contacto General'
+END AS Tipo_Persona,
+EmailPromotion,
+CASE
+		WHEN EmailPromotion=0 THEN 0.00
+		WHEN PersonType IN ('SC','EM','VC') AND EmailPromotion=1 THEN 0.15
+		WHEN PersonType IN ('GC','SP','IN') AND EmailPromotion=1 THEN 0.20
+		WHEN PersonType IN ('GC','SP') AND EmailPromotion=2 THEN 0.10
+		WHEN PersonType IN ('SC','EM','VC','IN') AND EmailPromotion=2 THEN 0.25
+END AS Dscto_Promotion
+From Person.Person
+WHERE LastName IN ('Allen','Miller','Monroe','Young')
+ORDER BY PersonType, NombreCompleto
+
